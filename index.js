@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { createRequire } from 'node:module';
+import axios, {isCancel, AxiosError} from 'axios';
 const require = createRequire(import.meta.url);
 const readXlsxFile = require('read-excel-file/node');
 // TODO: Add SDKs for Firebase products that you want to use
@@ -42,18 +43,60 @@ readXlsxFile('class-averages.xlsx').then((rows) => {
     if (course_code != rows[i+1][1]){
       var new_course_code = course_code.substring(0, 4) + " " + course_code.substring(4, course_code.length);
       var info_HTML = "<p>" + "Course: " + new_course_code + " (" + rows[i][5] + " credits)" + "</p>"  + "<p>" + "Historical averages:" + "</p>";
-      addWordToTrie(new_course_code);
       while (course_code == rows[i][1]){
         info_HTML += "<p>" + rows[i][2] + ": " + rows[i][3] + " (" + rows[i][4] + ")" + "</p>";
         i--;
       }
       i++;
       setDoc(doc(db, "keywords", new_course_code), { info: info_HTML });
-      console.log(info_HTML);
     }
   }
-  setDoc(docRef, { root: docSnapData.root});
 })
+
+crawlCourseListPage(0);
+
+function crawlCourseListPage(page_number){
+  console.log(page_number);
+  axios.get('https://www.mcgill.ca/study/2024-2025/courses/search?page=' + page_number)
+  .then(function (response) {
+    // handle success
+    var page_data = response.data;
+    for (var i = 0; i < page_data.length - 25; i++){
+      if ((page_data.substring(i, i + 25) == "/study/2024-2025/courses/") && (page_data.substring(i, i + 31) != "/study/2024-2025/courses/search")){
+        var course_code_start_index = 0;
+        var course_code_end_index = 0;
+        var space_count = 0;
+        var found_code = false;
+        for (var j = i + 25; found_code == false; j++){
+          if (page_data.substring(j, j + 1) == ">"){
+            course_code_start_index = j + 1;
+          }else if (page_data.substring(j, j + 1) == " "){
+            if (space_count == 0){
+              space_count++;
+            }else{
+              course_code_end_index = j;
+              found_code = true;
+            }
+          }
+        }
+        addWordToTrie(page_data.substring(course_code_start_index, course_code_end_index));
+        console.log(page_data.substring(course_code_start_index, course_code_end_index));
+      }
+    }
+    if (page_number >= 528){
+      setDoc(docRef, { root: docSnapData.root });
+    }else{
+      crawlCourseListPage(page_number + 1);
+    }
+  })
+  .catch(function (error) {
+    // handle error
+    console.log(error);
+  })
+  .finally(function () {
+    // always executed
+  });
+}
 
 function addWordToTrie(word){
   var buildNode = docSnapData.root;
