@@ -1,4 +1,5 @@
-var test_string = 'https://www.mcgill.ca/study/2024-2025/courses/search?page=';
-var number = 5;
-var test_string_2 = test_string + number;
-console.log(test_string_2);
+var test_map = new Object;
+var key = "test_key";
+test_map[key] = "testing text";
+test_map[key] += " append";
+console.log(test_map);
