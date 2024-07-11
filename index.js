@@ -66,7 +66,9 @@ function crawlCourseListPage(page_number){
         }
         var course_code = page_data.substring(course_code_start_index, course_code_end_index);
         addWordToTrie(course_code);
-        text_map[course_code] = "<p>" + "Course: " + course_code;
+        console.log(course_code);
+        text_map[course_code] = "<p>" + "Course: " + course_code + "</p>";
+        console.log(text_map[course_code]);
         var new_course_code = course_code.substring(0, 4).toLowerCase() + "-" + course_code.substring(5, course_code.length).toLowerCase();
         var course_page_link = "https://www.mcgill.ca/study/2024-2025/courses/" + new_course_code;
         const course_page_return = await crawlCoursePage(course_page_link, course_code);
@@ -75,8 +77,10 @@ function crawlCourseListPage(page_number){
     if (page_number >= 528){
       setDoc(docRef, { root: docSnapData.root });
       buildPostReqMap();
+      console.log(postreq_map);
       for (var i = 0; i < Object.keys(postreq_map).length; i++){
-        var course_code_key = Object.keys[i];
+        var course_code_key = Object.keys(postreq_map)[i];
+        console.log(course_code_key);
         text_map[course_code_key] += "<p>" + "This course can be used as a prerequisite for: " + "</p>" + listPostReqs(course_code_key);
       }
       crawlCourseHistoricalDataSpreadsheet();
@@ -105,18 +109,17 @@ function crawlCoursePage(page_link, page_course_code){
         prereq_array = [];
         for (var j = i + 12; end_reached == false; j++){
           if ((page_data.substring(j, j + 25) == "/study/2024-2025/courses/") && (page_data.substring(j, j + 31) != "/study/2024-2025/courses/search")){
-            var course_code_start_index = 0;
+            var course_code_start_index = j + 25;
             var course_code_end_index = 0;
             var found_code = false;
-            for (var k = j + 25; found_code == false; k++){
+            for (var k = course_code_start_index; found_code == false; k++){
               if (page_data.substring(k, k + 1) == ">"){
-                course_code_start_index = k + 1;
-              }else if (page_data.substring(k, k + 4) == "</a>"){
-                course_code_end_index = k;
+                course_code_end_index = k - 1;
                 found_code = true;
               }
             }
-            var course_code = page_data.substring(course_code_start_index, course_code_end_index);
+            var course_code = (page_data.substring(course_code_start_index, course_code_start_index + 4) + " " + page_data.substring(course_code_start_index + 5, course_code_end_index)).toUpperCase();
+            console.log(course_code);
             prereq_array.push(course_code);
           }
           if (page_data.substring(j, j + 4) == "</p>"){
@@ -142,6 +145,7 @@ function crawlCoursePage(page_link, page_course_code){
 }
 
 function crawlCourseHistoricalDataSpreadsheet(){
+  console.log("crawling spreadsheet");
   // File path.
   readXlsxFile('class-averages.xlsx').then((rows) => {
     // `rows` is an array of rows
@@ -161,6 +165,8 @@ function crawlCourseHistoricalDataSpreadsheet(){
     }
     console.log(text_map);
     console.log("Text map is above");
+    fillCourseInfoDB();
+    console.log("Done");
   })
   .catch(function (error) {
     // handle error
@@ -200,9 +206,20 @@ function addWordToTrie(word){
 function listPostReqs(course_code){
   var postreq_array = postreq_map[course_code];
   var postreq_list_text = "<ul>";
+  console.log("entering postreq list loop");
+  console.log(postreq_array);
   for (var i = 0; i < postreq_array.length; i++){
     postreq_list_text += "<li>" + postreq_array[i] + "</li>";
   }
   postreq_list_text += "</ul>";
   return postreq_list_text;
+}
+
+function fillCourseInfoDB(){
+  console.log("filling in course info DB");
+  var key_array = Object.keys(text_map);
+  for (var keys_index = 0; keys_index < key_array.length; keys_index++){
+    var course_code = key_array[keys_index];
+    setDoc(doc(db, "keywords", course_code), { info: text_map[course_code] });
+  }
 }
