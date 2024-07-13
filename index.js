@@ -1,10 +1,10 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { createRequire } from 'node:module';
 import axios, {isCancel, AxiosError} from 'axios';
 const require = createRequire(import.meta.url);
 const readXlsxFile = require('read-excel-file/node');
+const { initializeApp, applicationDefault, cert } = require('firebase-admin/app');
+const { getFirestore, Timestamp, FieldValue, Filter } = require('firebase-admin/firestore');
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -21,19 +21,23 @@ const firebaseConfig = {
   measurementId: "G-3T2RJ80XTB"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-// Initialize Cloud Firestore and get a reference to the service
+const serviceAccount = require('privatekey.json');
+
+initializeApp({
+  credential: cert(serviceAccount)
+});
+
 const db = getFirestore();
 
 
 console.log("test");
 
-const docRef = doc(db, "data structures", "keyword trie");
-const docSnap = await getDoc(docRef);
+const docRef = db.collection("data structures").doc("keyword trie");
+console.log("test 2");
+const docSnap = await docRef.get();
 const docSnapData = docSnap.data();
 
-
+console.log("test 2");
 
 var prereq_map = new Object;
 var postreq_map = new Object;
@@ -75,7 +79,7 @@ function crawlCourseListPage(page_number){
       }
     }
     if (page_number >= 528){
-      setDoc(docRef, { root: docSnapData.root });
+      const res = await docRef.set({ root: docSnapData.root });
       buildPostReqMap();
       console.log(postreq_map);
       for (var i = 0; i < Object.keys(postreq_map).length; i++){
@@ -215,11 +219,12 @@ function listPostReqs(course_code){
   return postreq_list_text;
 }
 
-function fillCourseInfoDB(){
+async function fillCourseInfoDB(){
   console.log("filling in course info DB");
   var key_array = Object.keys(text_map);
   for (var keys_index = 0; keys_index < key_array.length; keys_index++){
     var course_code = key_array[keys_index];
-    setDoc(doc(db, "keywords", course_code), { info: text_map[course_code] });
+    const info_doc = db.collection("keywords").doc(course_code);
+    const res = await info_doc.set({ info: text_map[course_code] });
   }
 }
